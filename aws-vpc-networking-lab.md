@@ -489,3 +489,55 @@ I used AWS CLI with the CloudLab read-only profile to inspect:
 
 No AWS resources were created, modified, or deleted during this inspection.
 
+
+---
+
+# AWS VPC Internet Traffic Flow Exercise – November 2026
+
+## 1. EC2 Instance Inspection
+
+Used AWS CLI to inspect EC2 instances in the default VPC.
+
+Result:
+- EC2 instances found: 0
+- No existing EC2 instance was available for live traffic testing.
+- No resources were created or modified.
+
+## 2. Hypothetical Internet Traffic Flow
+
+For learning purposes, an example EC2 instance was considered.
+
+Traffic flow:
+1. Internet user sends an HTTP request.
+2. Internet Gateway connects the VPC to the internet.
+3. Route table directs internet-bound traffic to the Internet Gateway.
+4. Traffic reaches the public subnet.
+5. Network ACL evaluates inbound traffic.
+6. Security Group checks whether HTTP traffic is permitted.
+7. EC2 web server receives the request.
+8. Response traffic returns to the internet.
+
+## 3. Important Requirements
+
+For an internet-facing EC2 web server:
+- The subnet needs a route to an Internet Gateway.
+- The EC2 instance needs a public IPv4 address or Elastic IP.
+- The Security Group must permit the required inbound traffic.
+- Network ACL inbound and outbound rules must permit the traffic.
+- The web server must be running and listening on the required port.
+
+## 4. Important Learning Points
+
+- HTTP normally uses TCP port 80.
+- HTTPS normally uses TCP port 443.
+- SSH normally uses TCP port 22.
+- Security Groups are stateful.
+- Network ACLs are stateless.
+- A public IP alone does not make a subnet public.
+
+## 5. Exercise Limitation
+
+This traffic-flow exercise is a conceptual walkthrough based on the inspected VPC configuration.
+
+No live EC2 traffic test was performed because no EC2 instances were found in the VPC.
+
