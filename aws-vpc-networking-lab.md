@@ -427,3 +427,65 @@ I used AWS CLI read-only commands to inspect a real AWS environment and identify
 
 This is part of my ongoing Cloud and DevOps engineering learning journey.
 
+
+---
+
+# AWS VPC Security Inspection – November 2026
+
+## 1. Network ACL Inspection
+
+Network ACL ID: acl-094f8c990545effd2
+
+Findings:
+- Default Network ACL: True
+- Associated subnets: 6
+- Inbound rule 100: Allow all IPv4 traffic
+- Outbound rule 100: Allow all IPv4 traffic
+- Rule 32767: Deny remaining unmatched IPv4 traffic
+
+## 2. Security Group Inspection
+
+Security Group ID: sg-0697b37bce19effab
+
+Name: default
+
+Inbound rules:
+- Allows all protocols from network interfaces associated with the same Security Group.
+- Does not allow unrestricted inbound internet traffic.
+
+Outbound rules:
+- Allows all IPv4 outbound traffic to 0.0.0.0/0.
+
+## 3. Security Group vs Network ACL
+
+| Feature | Security Group | Network ACL |
+|---|---|---|
+| Protection level | Resource level | Subnet level |
+| Stateful | Yes | No |
+| Rules | Allow rules | Allow and deny rules |
+| Rule evaluation | All applicable rules | Lowest numbered first |
+| Default behaviour | Inbound restricted | Default NACL allows traffic |
+
+## 4. Important Learning Points
+
+1. Security Groups are stateful.
+2. Network ACLs are stateless.
+3. Security Groups protect individual resources.
+4. Network ACLs protect subnets.
+5. The default Security Group allows inbound traffic from resources associated with the same Security Group.
+6. The default Network ACL allows inbound and outbound IPv4 traffic through its rule 100.
+
+## 5. Practical Lab Summary
+
+I used AWS CLI with the CloudLab read-only profile to inspect:
+
+- VPC configuration
+- Route tables
+- Route-table associations
+- Subnets across six Availability Zones
+- Internet Gateway routes
+- Network ACLs
+- Security Groups
+
+No AWS resources were created, modified, or deleted during this inspection.
+
