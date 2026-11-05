@@ -541,3 +541,231 @@ This traffic-flow exercise is a conceptual walkthrough based on the inspected VP
 
 No live EC2 traffic test was performed because no EC2 instances were found in the VPC.
 
+
+---
+
+# AWS Public vs Private Subnets – November 2026
+
+## 1. Practical Overview
+
+This practical exercise focused on understanding public and private subnets, subnet-to-route-table associations, implicit main route-table associations, Internet Gateways and NAT Gateways.
+
+The exercise used AWS CLI with the CloudLab read-only profile.
+
+No AWS resources were created, modified or deleted.
+
+Region: us-east-1
+
+VPC ID: vpc-0613c43bac933f8f0
+
+## 2. Inspecting VPC Subnets
+
+Command:
+
+aws ec2 describe-subnets \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'Subnets[*].[SubnetId,CidrBlock,AvailabilityZone,MapPublicIpOnLaunch]' \
+  --output table
+
+Purpose:
+- Identify existing subnets.
+- Inspect subnet CIDR blocks.
+- Identify Availability Zones.
+- Check automatic public IPv4 assignment.
+
+Findings:
+
+Six subnets were identified across six Availability Zones:
+
+| Subnet ID | CIDR Block | Availability Zone | Auto Public IP |
+|---|---|---|---|
+| subnet-0c6e00b5b3b5c4030 | 172.31.80.0/20 | us-east-1b | True |
+| subnet-0e6c61a11aad2ed5d | 172.31.16.0/20 | us-east-1c | True |
+| subnet-0babfdc409b7b1bbd | 172.31.64.0/20 | us-east-1f | True |
+| subnet-07bb55d565f9a66b7 | 172.31.0.0/20 | us-east-1a | True |
+| subnet-0af6aadebd14df396 | 172.31.32.0/20 | us-east-1d | True |
+| subnet-0c40d3aae49615559 | 172.31.48.0/20 | us-east-1e | True |
+
+Important lesson:
+
+MapPublicIpOnLaunch=True means instances launched in the subnet can automatically receive public IPv4 addresses.
+
+However, this setting alone does not determine whether a subnet is public or private.
+
+The effective route table must also be inspected.
+
+## 3. Inspecting Route-Table Associations
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'RouteTables[*].[RouteTableId,Associations[*].SubnetId]' \
+  --output json
+
+Finding:
+
+Route table: rtb-0509333dff5995e2a
+
+Explicit subnet associations: None ([])
+
+Explanation:
+
+An empty association list does not mean that the subnets have no route table.
+
+Subnets without an explicit route-table association automatically use their VPC's main route table.
+
+## 4. Verifying the Main Route Table
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'RouteTables[*].[RouteTableId,Associations[*].Main]' \
+  --output table
+
+Finding:
+
+rtb-0509333dff5995e2a
+
+Main: True
+
+This confirmed that the identified route table is the VPC's main route table.
+
+Therefore, all six subnets without explicit associations use this main route table.
+
+## 5. Inspecting Route-Table Routes
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'RouteTables[*].Routes[*].[DestinationCidrBlock,GatewayId,NatGatewayId,State]' \
+  --output table
+
+Findings:
+
+| Destination | Target | State |
+|---|---|---|
+| 172.31.0.0/16 | local | active |
+| 0.0.0.0/0 | igw-08ac9a33ea66555a | active |
+
+Explanation:
+
+The local route allows communication within the VPC, subject to network security controls.
+
+The 0.0.0.0/0 route sends traffic destined outside the VPC to the Internet Gateway.
+
+Because all six subnets use this main route table, all six have a route to the Internet Gateway.
+
+This means they are configured as public subnets.
+
+An instance still requires appropriate public IPv4 addressing, security group rules, network ACL rules and other necessary configuration for internet connectivity.
+
+## 6. Inspecting NAT Gateways
+
+Command:
+
+aws ec2 describe-nat-gateways \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'NatGateways[*].[NatGatewayId,SubnetId,State,VpcId]' \
+  --output table
+
+Finding:
+
+No NAT Gateways were returned.
+
+This indicates that no NAT Gateway was found by this query in the selected region.
+
+Explanation:
+
+A NAT Gateway allows instances in private subnets to initiate outbound internet connections without requiring public IP addresses on those instances.
+
+A typical private subnet uses a default route:
+
+0.0.0.0/0 -> NAT Gateway
+
+The NAT Gateway itself is placed in a public subnet and uses an Internet Gateway for internet connectivity.
+
+## 7. Confirming Subnet VPC Membership
+
+Command:
+
+aws ec2 describe-subnets \
+  --profile CloudLab \
+  --region us-east-1 \
+  --query 'Subnets[*].[SubnetId,VpcId,MapPublicIpOnLaunch]' \
+  --output table
+
+Finding:
+
+All six subnets belong to:
+
+vpc-0613c43bac933f8f0
+
+All six have automatic public IP assignment enabled.
+
+## 8. Public vs Private Subnets: Key Concepts
+
+Public subnet:
+
+- Has an effective route to an Internet Gateway.
+- Can host instances configured for direct internet connectivity.
+- Instances generally need public IPv4 addresses for direct IPv4 internet communication.
+
+Private subnet:
+
+- Has no direct route to an Internet Gateway.
+- Can use a NAT Gateway for outbound internet access.
+- Instances do not need public IP addresses for outbound access through NAT.
+
+Important distinction:
+
+Automatic public IP assignment does not independently make a subnet public.
+
+The effective route table determines whether the subnet has a direct route to an Internet Gateway.
+
+## 9. Current VPC Architecture Findings
+
+VPC: vpc-0613c43bac933f8f0
+
+Region: us-east-1
+
+- Six subnets across six Availability Zones.
+- One route table returned by the inspection.
+- The route table is the main route table.
+- No explicit subnet associations were returned.
+- All six subnets use the main route table by default.
+- The main route table contains an active Internet Gateway route.
+- No NAT Gateways were returned by the inspection.
+- All six subnets have automatic public IP assignment enabled.
+
+Conclusion:
+
+The inspected default VPC has six subnets configured as public subnets through their shared main route table.
+
+No private subnet or NAT Gateway was identified in this inspection.
+
+## 10. Important Learning Points
+
+1. A public subnet has a route to an Internet Gateway.
+2. A private subnet has no direct route to an Internet Gateway.
+3. Every subnet uses a route table.
+4. A subnet without an explicit route-table association uses the VPC's main route table.
+5. MapPublicIpOnLaunch controls automatic public IP assignment, not subnet classification.
+6. NAT Gateways allow private instances to initiate outbound internet connections.
+7. NAT Gateways are deployed in public subnets.
+
+## 11. Read-Only Safety Record
+
+All commands used in this practical were AWS EC2 describe operations.
+
+No AWS infrastructure was created, modified or deleted.
+
+The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
+
