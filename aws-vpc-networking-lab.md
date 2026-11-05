@@ -769,3 +769,267 @@ No AWS infrastructure was created, modified or deleted.
 
 The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
 
+
+---
+
+# AWS Security Groups vs Network ACLs – November 5, 2026
+
+## 1. Practical Overview
+
+This practical exercise focused on understanding AWS Security Groups and Network Access Control Lists (NACLs).
+
+The exercise used AWS CLI with the CloudLab read-only profile.
+
+No AWS resources were created, modified or deleted.
+
+Region: us-east-1
+
+VPC ID: vpc-0613c43bac933f8f0
+
+## 2. Inspecting the Default Security Group
+
+Command:
+
+aws ec2 describe-security-groups \
+  --profile CloudLab \
+  --region us-east-1 \
+  --group-ids sg-0697b37bce19effab \
+  --query 'SecurityGroups[*].[GroupId,GroupName,IpPermissions,IpPermissionsEgress]' \
+  --output json
+
+Security Group ID:
+
+sg-0697b37bce19effab
+
+Security Group name: default
+
+### Inbound rule findings
+
+- IpProtocol: -1
+- The rule allows all IP protocols.
+- The source is the same Security Group.
+
+Explanation:
+
+Resources associated with this Security Group can communicate with one another over all protocols, subject to other applicable network controls.
+
+This does not mean that all internet traffic is allowed inbound.
+
+### Outbound rule findings
+
+- IpProtocol: -1
+- Destination: 0.0.0.0/0
+- All outbound IPv4 destinations are allowed.
+
+Explanation:
+
+The default Security Group allows outbound traffic to any IPv4 address.
+
+## 3. Understanding Security Group Behaviour
+
+Security Groups are stateful firewalls.
+
+This means that response traffic for an allowed connection is automatically permitted.
+
+For example, when an inbound connection is allowed, the response traffic does not require a separate outbound rule.
+
+Important characteristics:
+
+- Applied to network interfaces associated with resources such as EC2 instances.
+- Support allow rules.
+- Do not have explicit deny rules.
+- Are stateful.
+- All applicable rules are evaluated together.
+
+## 4. Inspecting the Default Network ACL
+
+Command:
+
+aws ec2 describe-network-acls \
+  --profile CloudLab \
+  --region us-east-1 \
+  --network-acl-ids acl-094f8c990545effd2 \
+  --query 'NetworkAcls[*].[NetworkAclId,IsDefault,Entries]' \
+  --output json
+
+Network ACL ID:
+
+acl-094f8c990545effd2
+
+IsDefault: true
+
+### Inbound rules
+
+| Rule number | Action | Protocol | IPv4 CIDR |
+|---|---|---|---|
+| 100 | Allow | All | 0.0.0.0/0 |
+| 32767 | Deny | All | 0.0.0.0/0 |
+
+### Outbound rules
+
+| Rule number | Action | Protocol | IPv4 CIDR |
+|---|---|---|---|
+| 100 | Allow | All | 0.0.0.0/0 |
+| 32767 | Deny | All | 0.0.0.0/0 |
+
+Explanation:
+
+- Egress true means outbound traffic.
+- Egress false means inbound traffic.
+- Protocol -1 means all IP protocols.
+- 0.0.0.0/0 represents all IPv4 addresses.
+- Allow permits matching traffic.
+- Deny blocks matching traffic.
+
+### Understanding rule numbers
+
+Network ACL rules are evaluated in ascending numerical order.
+
+The lowest numbered matching rule is applied first.
+
+In this default NACL:
+
+- Rule 100 allows all IPv4 traffic.
+- Rule 32767 denies traffic that has not matched an earlier rule.
+
+Because rule 100 already matches all IPv4 traffic, the final deny rule acts as a fallback.
+
+## 5. Understanding Network ACL Behaviour
+
+Network ACLs are stateless firewalls.
+
+This means inbound and outbound traffic are evaluated independently.
+
+For example:
+
+If an inbound HTTP request is allowed, the NACL must also have an appropriate outbound rule to permit the response traffic.
+
+Important characteristics:
+
+- Applied at the subnet level.
+- Support both allow and deny rules.
+- Evaluate rules in numerical order.
+- Are stateless.
+- Require appropriate rules for both directions of communication.
+
+## 6. Inspecting Network ACL Subnet Associations
+
+Command:
+
+aws ec2 describe-network-acls \
+  --profile CloudLab \
+  --region us-east-1 \
+  --network-acl-ids acl-094f8c990545effd2 \
+  --query 'NetworkAcls[*].Associations[*].[SubnetId,NetworkAclAssociationId]' \
+  --output table
+
+Finding:
+
+The default NACL is associated with all six subnets:
+
+| Subnet ID | Network ACL Association ID |
+|---|---|
+| subnet-0c6e00b5b3b5c4030 | aclassoc-0bba62bc7a15bfd10 |
+| subnet-0e6c61a11aad2ed5d | aclassoc-0c7adc747c032ff01 |
+| subnet-0babfdc409b7b1bbd | aclassoc-05966d3571b4a3786 |
+| subnet-0c40d3aae49615559 | aclassoc-081f7731af8950d85 |
+| subnet-0af6aadebd14df396 | aclassoc-02951a77d4d5b8a95 |
+| subnet-07bb55d565f9a66b7 | aclassoc-09d40e79616a2fb35 |
+
+Explanation:
+
+Each subnet has its own association ID, but all six associations point to the same Network ACL.
+
+## 7. Checking for Additional Network ACLs
+
+Command:
+
+aws ec2 describe-network-acls \
+  --profile CloudLab \
+  --region us-east-1 \
+  --filters Name=vpc-id,Values=vpc-0613c43bac933f8f0 \
+  --query 'NetworkAcls[*].[NetworkAclId,IsDefault,Associations[*].SubnetId]' \
+  --output json
+
+Finding:
+
+Only one Network ACL was returned:
+
+acl-094f8c990545effd2
+
+IsDefault: true
+
+All six subnets are associated with this default NACL.
+
+No additional custom Network ACLs were identified in this VPC inspection.
+
+Note:
+
+The inspected entries were IPv4 rules. IPv6 rules were not evaluated in this exercise.
+
+## 8. Security Groups vs Network ACLs
+
+| Feature | Security Group | Network ACL |
+|---|---|---|
+| Applies to | Network interfaces | Subnets |
+| Firewall type | Stateful | Stateless |
+| Allow rules | Yes | Yes |
+| Explicit deny rules | No | Yes |
+| Rule evaluation | All applicable rules | Lowest numbered matching rule |
+| Return traffic | Automatically permitted | Must be explicitly permitted |
+
+### Practical example: EC2 HTTP traffic
+
+Imagine an EC2 instance receives an HTTP request on port 80.
+
+For the connection to work:
+
+1. The Security Group must allow inbound HTTP traffic.
+2. The subnet's Network ACL must allow inbound HTTP traffic.
+3. The Network ACL must also allow the appropriate outbound response traffic.
+4. Other applicable network controls must permit the connection.
+
+Both the Security Group and Network ACL must permit the relevant traffic.
+
+## 9. Current VPC Security Findings
+
+VPC: vpc-0613c43bac933f8f0
+
+Region: us-east-1
+
+- Default Security Group inspected.
+- Inbound Security Group rule allows traffic from the same Security Group.
+- Outbound Security Group rule allows all IPv4 destinations.
+- One default Network ACL identified.
+- Default NACL allows all IPv4 inbound traffic.
+- Default NACL allows all IPv4 outbound traffic.
+- All six subnets are associated with the default NACL.
+- No additional custom NACLs were identified.
+
+Conclusion:
+
+The inspected VPC uses its default Security Group and one default Network ACL.
+
+The Security Group provides stateful traffic filtering at the network-interface level, while the Network ACL provides stateless traffic filtering at the subnet level.
+
+## 10. Important Learning Points
+
+1. Security Groups protect resources at the network-interface level.
+2. Network ACLs protect traffic at the subnet level.
+3. Security Groups are stateful.
+4. Network ACLs are stateless.
+5. Security Groups support allow rules but not explicit deny rules.
+6. Network ACLs support both allow and deny rules.
+7. Network ACL rules are evaluated in ascending numerical order.
+8. Both Security Groups and Network ACLs must permit traffic for communication to succeed.
+9. Network ACLs require appropriate inbound and outbound rules.
+10. A subnet is associated with a Network ACL.
+
+## 11. Read-Only Safety Record
+
+All commands used in this practical were AWS EC2 describe operations.
+
+No AWS infrastructure was created, modified or deleted.
+
+The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
+
