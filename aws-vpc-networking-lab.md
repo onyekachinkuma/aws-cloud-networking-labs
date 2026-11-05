@@ -1282,3 +1282,348 @@ The shell loop only performed read-only AWS inspection commands.
 No AWS infrastructure was created, modified or deleted.
 
 The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
+
+---
+
+# AWS VPC Internet Connectivity, Endpoints and DNS – November 5, 2026
+
+## 1. Practical Overview
+
+This practical extended the VPC networking exercises by inspecting Internet Gateway connectivity, NAT Gateways, VPC Endpoints, IPv4 and IPv6 configuration, subnet address capacity, automatic IP assignment, DNS settings and DHCP options.
+
+The exercise used the AWS CLI with the CloudLab read-only profile in us-east-1.
+
+No AWS resources were created, modified or deleted.
+
+## 2. Internet Gateway Inspection
+
+Finding:
+- Internet Gateway: igw-08ac9a33ea66555a7
+- Attachment state: available
+- Attached VPC: vpc-0613c43bac933f8f0
+
+An Internet Gateway enables communication between a VPC and the internet when routing and other network requirements are satisfied.
+
+Attaching an Internet Gateway does not automatically make every subnet public. The effective route table must contain a route to the Internet Gateway.
+
+For IPv4 internet communication, an EC2 instance also needs a public IPv4 address and suitable security controls.
+
+## 3. NAT Gateway Inspection
+
+Two read-only inspections were performed:
+- A VPC-specific NAT Gateway inspection.
+- An account-wide regional NAT Gateway inspection.
+
+Both returned no NAT Gateway entries.
+
+Conclusion:
+
+No NAT Gateway was found in the inspected VPC or in the account-wide results for us-east-1. This does not establish whether NAT Gateways exist in other regions or accounts.
+
+### Internet Gateway vs NAT Gateway
+
+- An Internet Gateway provides a VPC connection to the internet.
+- A NAT Gateway allows resources in private subnets to initiate outbound IPv4 internet connections.
+- A NAT Gateway is normally deployed in a public subnet.
+- A private subnet's default route can point to a NAT Gateway.
+- The NAT Gateway's public subnet needs a route to an Internet Gateway.
+
+A NAT Gateway does not make private instances directly reachable through unsolicited inbound internet connections.
+
+## 4. Route Table Target Inspection
+
+The inspected route table was rtb-0509333dff5995e2a.
+
+| Destination | Target | State |
+|---|---|---|
+| 172.31.0.0/16 | local | active |
+| 0.0.0.0/0 | igw-08ac9a33ea66555a7 | active |
+
+The route table has a local route for communication within the VPC and a default IPv4 route to the Internet Gateway.
+
+No NAT Gateway target was shown in this route table.
+
+
+## 5. VPC Endpoint Inspection
+
+The VPC Endpoint inspection returned an empty list.
+
+No VPC Endpoints were returned for this VPC in us-east-1.
+
+A VPC Endpoint provides private connectivity between a VPC and supported AWS services without requiring internet access for that service traffic.
+
+Two important types:
+
+1. Gateway Endpoint:
+   - Supports Amazon S3 and DynamoDB.
+   - Uses route table entries.
+   - Is associated with route tables.
+
+2. Interface Endpoint:
+   - Uses AWS PrivateLink.
+   - Creates network interfaces in selected subnets.
+   - Uses security groups and DNS configuration.
+
+## 6. IPv4 and IPv6 Inspection
+
+Findings from the VPC inspection:
+
+- VPC IPv4 CIDR: 172.31.0.0/16
+- IPv6 CIDR association: none
+- VPC state: available
+
+The inspected VPC has an IPv4 CIDR but no associated IPv6 CIDR.
+
+Important concepts:
+
+- IPv4 addresses are 32 bits.
+- IPv6 addresses are 128 bits.
+- The IPv4 default route is 0.0.0.0/0.
+- The IPv6 default route is ::/0.
+- IPv6 routing and security configuration must be considered separately from IPv4.
+
+
+## 7. Subnet CIDR and Available Address Inspection
+
+The six inspected subnets have the following configurations:
+
+| Subnet ID | CIDR | Availability Zone | Available IPv4 addresses |
+|---|---|---|---:|
+| subnet-0c6e00b5b3b5c4030 | 172.31.80.0/20 | us-east-1b | 4091 |
+| subnet-0e6c61a11aad2ed5d | 172.31.16.0/20 | us-east-1c | 4091 |
+| subnet-0babfdc409b7b1bbd | 172.31.64.0/20 | us-east-1f | 4091 |
+| subnet-07bb55d565f9a66b7 | 172.31.0.0/20 | us-east-1a | 4091 |
+| subnet-0af6aadebd14df396 | 172.31.32.0/20 | us-east-1d | 4091 |
+| subnet-0c40d3aae49615559 | 172.31.48.0/20 | us-east-1e | 4091 |
+
+### Understanding /20
+
+A /20 IPv4 network contains:
+
+2^(32 - 20) = 4096 total IPv4 addresses.
+
+AWS reserves five IPv4 addresses in each subnet, leaving:
+
+4096 - 5 = 4091 available addresses.
+
+The VPC /16 contains:
+
+2^(32 - 16) = 65,536 IPv4 addresses.
+
+The six /20 subnets account for 24,576 addresses in total. The remaining VPC address space is not automatically assigned to additional subnets.
+
+## 8. Automatic Public IPv4 and IPv6 Assignment
+
+The subnet inspection returned these settings for all six subnets:
+
+- MapPublicIpOnLaunch: True
+- AssignIpv6AddressOnCreation: False
+
+Meaning:
+
+- MapPublicIpOnLaunch controls whether instances launched in a subnet automatically receive a public IPv4 address, subject to launch settings.
+- AssignIpv6AddressOnCreation controls automatic IPv6 address assignment at instance launch.
+- All six inspected subnets have automatic public IPv4 assignment enabled.
+- Automatic IPv6 address assignment is disabled.
+
+Important:
+
+Automatic public IP assignment alone does not make a subnet public. The effective route table must provide a route to an Internet Gateway for the subnet to be public.
+
+
+## 9. VPC DNS Configuration
+
+### DNS Support
+
+Finding:
+
+EnableDnsSupport = true
+
+This setting enables DNS resolution within the VPC using the Amazon-provided DNS resolver.
+
+### DNS Hostnames
+
+Finding:
+
+EnableDnsHostnames = true
+
+This enables DNS hostname assignment for eligible instances in the VPC. Instances with public IPv4 addresses can receive public DNS hostnames, subject to AWS requirements.
+
+### Difference between DNS Support and DNS Hostnames
+
+- DNS Support: enables DNS resolution.
+- DNS Hostnames: enables DNS hostname assignment for eligible instances.
+
+Both settings are enabled in the inspected VPC.
+
+## 10. DHCP Options Inspection
+
+The VPC is associated with DHCP options set:
+
+dopt-05041fe7760e52364
+
+The inspected DHCP configuration returned:
+
+| DHCP configuration | Value |
+|---|---|
+| domain-name | ec2.internal |
+| domain-name-servers | AmazonProvidedDNS |
+
+Meaning:
+
+- domain-name specifies the DNS domain suffix used by instances.
+- domain-name-servers specifies the DNS servers supplied through DHCP.
+- AmazonProvidedDNS means instances use the DNS resolver provided by AWS.
+
+DHCP options can also define other network settings, such as NTP servers and NetBIOS settings.
+
+
+## 11. Revision Questions and Answers
+
+### Question 1
+What is the main purpose of an Internet Gateway?
+
+Answer:
+
+It enables communication between a VPC and the internet when routes and other network requirements are correctly configured.
+
+### Question 2
+What makes a subnet public?
+
+Answer:
+
+Its effective route table has a route to an Internet Gateway, commonly 0.0.0.0/0 for IPv4.
+
+### Question 3
+Does enabling automatic public IPv4 assignment make a subnet public?
+
+Answer:
+
+No. Public subnet classification depends on the effective route table's route to an Internet Gateway.
+
+### Question 4
+What is the purpose of a NAT Gateway?
+
+Answer:
+
+It allows resources in private subnets to initiate outbound IPv4 internet connections without being directly reachable through unsolicited inbound internet connections.
+
+### Question 5
+Where is a NAT Gateway normally deployed?
+
+Answer:
+
+In a public subnet with a route to an Internet Gateway.
+
+### Question 6
+What is a VPC Endpoint?
+
+Answer:
+
+It provides private connectivity between a VPC and supported AWS services without requiring internet access for that service traffic.
+
+### Question 7
+Which AWS services support Gateway Endpoints?
+
+Answer:
+
+Amazon S3 and DynamoDB.
+
+### Question 8
+What is the difference between IPv4 and IPv6?
+
+Answer:
+
+IPv4 uses 32-bit addresses, while IPv6 uses 128-bit addresses.
+
+### Question 9
+How many total IPv4 addresses are in a /20 subnet?
+
+Answer:
+
+4096 addresses.
+
+### Question 10
+How many IPv4 addresses does AWS reserve in each subnet?
+
+Answer:
+
+Five addresses.
+
+### Question 11
+How many available IPv4 addresses remain in an otherwise unused /20 subnet?
+
+Answer:
+
+4091 addresses.
+
+### Question 12
+What does MapPublicIpOnLaunch control?
+
+Answer:
+
+Whether instances launched in the subnet automatically receive public IPv4 addresses, subject to launch settings.
+
+### Question 13
+What does AssignIpv6AddressOnCreation control?
+
+Answer:
+
+Whether IPv6 addresses are automatically assigned at instance launch.
+
+### Question 14
+What does EnableDnsSupport do?
+
+Answer:
+
+It enables DNS resolution within the VPC.
+
+### Question 15
+What does EnableDnsHostnames do?
+
+Answer:
+
+It enables DNS hostname assignment for eligible instances in the VPC.
+
+### Question 16
+What does AmazonProvidedDNS mean in DHCP options?
+
+Answer:
+
+Instances use the DNS resolver provided by AWS.
+
+### Question 17
+What is the purpose of DHCP options in a VPC?
+
+Answer:
+
+They provide network configuration information to instances, including DNS domain and DNS server settings.
+
+### Question 18
+What happens when a subnet has no explicit route table association?
+
+Answer:
+
+It uses the VPC's main route table.
+
+### Question 19
+What is the difference between a Security Group and a Network ACL?
+
+Answer:
+
+A Security Group is stateful and operates at the network interface/resource level. A Network ACL is stateless and operates at the subnet level.
+
+### Question 20
+What must be considered before concluding that an EC2 instance can communicate with the internet?
+
+Answer:
+
+The effective route table, Internet Gateway attachment, instance public IP configuration, Security Group rules and Network ACL rules.
+
+## 12. Read-Only Safety Record
+
+All AWS inspection commands in these practical exercises used the CloudLab read-only profile in us-east-1.
+
+No AWS resources were created, modified or deleted.
+
+The exercises focused on understanding existing VPC networking, internet connectivity, IP addressing, DNS, DHCP and network security configuration.
