@@ -1033,3 +1033,252 @@ No AWS infrastructure was created, modified or deleted.
 
 The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
 
+
+---
+
+# AWS Route Tables and Subnet Associations – November 5, 2026
+
+## 1. Practical Overview
+
+This practical exercise focused on understanding AWS route tables and how subnets use them.
+
+The exercise used AWS CLI with the CloudLab read-only profile.
+
+No AWS resources were created, modified or deleted.
+
+Region: us-east-1
+
+VPC ID: vpc-0613c43bac933f8f0
+
+## 2. Understanding Route Tables
+
+A route table contains rules called routes.
+
+These routes determine where network traffic is directed when it leaves a subnet or needs to reach another network destination.
+
+Each route contains:
+
+- Destination: The network or IP address range the traffic is intended for.
+- Target: Where AWS sends the matching traffic.
+- State: Whether the route is active or inactive.
+
+A subnet must be associated with a route table.
+
+A subnet without an explicit association automatically uses the VPC's main route table.
+
+## 3. Inspecting Route Tables in the VPC
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --filters Name=vpc-id,Values=vpc-0613c43bac933f8f0 \
+  --query 'RouteTables[*].[RouteTableId,Associations]' \
+  --output json
+
+Finding:
+
+One route table was returned:
+
+Route table ID: rtb-0509333dff5995e2a
+
+Main: true
+
+Association state: associated
+
+No explicitly associated subnet IDs were listed.
+
+Explanation:
+
+The Main value of true identifies this as the VPC's main route table.
+
+The main route table is automatically used by subnets that do not have an explicit association with another route table.
+
+## 4. Inspecting the Routes
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --route-table-ids rtb-0509333dff5995e2a \
+  --query 'RouteTables[*].Routes[*].[DestinationCidrBlock,GatewayId,State]' \
+  --output table
+
+Findings:
+
+| Destination | Target | State |
+|---|---|---|
+| 172.31.0.0/16 | local | active |
+| 0.0.0.0/0 | igw-08ac9a33ea66555a7 | active |
+
+### Understanding the local route
+
+Destination: 172.31.0.0/16
+
+Target: local
+
+This route allows communication between resources within the VPC using their private IP addresses, subject to applicable network security controls.
+
+### Understanding the default route
+
+Destination: 0.0.0.0/0
+
+Target: igw-08ac9a33ea66555a7
+
+This is the default IPv4 route.
+
+It directs traffic that does not match a more specific route toward the Internet Gateway.
+
+The route is active.
+
+Important:
+
+A route to an Internet Gateway does not automatically guarantee internet connectivity for every resource.
+
+An EC2 instance also needs an appropriate public IP address and suitable network security rules.
+
+## 5. Checking an Individual Subnet Association
+
+Subnet inspected:
+
+subnet-0c6e00b5b3b5c4030
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --filters Name=association.subnet-id,Values=subnet-0c6e00b5b3b5c4030 \
+  --query 'RouteTables[*].[RouteTableId,Associations]' \
+  --output json
+
+Result:
+
+[]
+
+Explanation:
+
+The empty result means that no explicit route table association was found for this subnet.
+
+It does not mean that the subnet has no route table.
+
+Because the subnet has no explicit association, AWS automatically uses the VPC's main route table.
+
+## 6. Checking All Six Subnets
+
+The following read-only shell loop checked each subnet individually:
+
+for subnet in \
+subnet-0c6e00b5b3b5c4030 \
+subnet-0e6c61a11aad2ed5d \
+subnet-0babfdc409b7b1bbd \
+subnet-07bb55d565f9a66b7 \
+subnet-0af6aadebd14df396 \
+subnet-0c40d3aae49615559
+do
+  echo "Checking $subnet"
+  aws ec2 describe-route-tables \
+    --profile CloudLab \
+    --region us-east-1 \
+    --filters Name=association.subnet-id,Values="$subnet" \
+    --query 'RouteTables[*].RouteTableId' \
+    --output text
+done
+
+Finding:
+
+All six subnet checks returned no explicit route table association.
+
+Therefore, all six subnets use the VPC's main route table:
+
+rtb-0509333dff5995e2a
+
+## 7. Verifying the Main Route Table Association
+
+Command:
+
+aws ec2 describe-route-tables \
+  --profile CloudLab \
+  --region us-east-1 \
+  --filters Name=vpc-id,Values=vpc-0613c43bac933f8f0 \
+  --query 'RouteTables[*].[RouteTableId,Associations[*].[Main,SubnetId,AssociationState.State]]' \
+  --output json
+
+Finding:
+
+- Route table ID: rtb-0509333dff5995e2a
+- Main: true
+- SubnetId: null
+- Association state: associated
+
+Explanation:
+
+The main route table has a main association rather than a separate explicit association for each subnet.
+
+Subnets without explicit route table associations automatically use this main route table.
+
+## 8. Explicit vs Implicit Route Table Associations
+
+### Explicit association
+
+An explicit association occurs when a subnet is directly associated with a particular route table.
+
+This allows different subnets to use different routing configurations.
+
+For example, a public subnet and a private subnet can use separate route tables.
+
+### Implicit association
+
+An implicit association occurs when a subnet has no explicit route table association.
+
+AWS automatically uses the VPC's main route table for that subnet.
+
+Important:
+
+A subnet using the main route table is still associated with a route table. The association is simply not listed as an individual subnet association.
+
+## 9. Current VPC Route Table Findings
+
+VPC: vpc-0613c43bac933f8f0
+
+Region: us-east-1
+
+- One route table was identified.
+- Route table ID: rtb-0509333dff5995e2a.
+- The route table is the main route table.
+- All six inspected subnets have no explicit route table association.
+- All six subnets therefore use the main route table.
+- The local route 172.31.0.0/16 is active.
+- The default route 0.0.0.0/0 points to the Internet Gateway.
+- Both inspected routes are active.
+
+Conclusion:
+
+The inspected VPC uses one main route table for all six subnets.
+
+The local route supports communication within the VPC, while the default route directs other IPv4 traffic toward the Internet Gateway.
+
+## 10. Important Learning Points
+
+1. Route tables control where network traffic is directed.
+2. Routes contain a destination and a target.
+3. The local route supports communication within a VPC.
+4. The default IPv4 route is represented by 0.0.0.0/0.
+5. An Internet Gateway can be the target of a default route.
+6. A subnet can have an explicit route table association.
+7. A subnet without an explicit association automatically uses the main route table.
+8. The main route table is identified by Main: true.
+9. A subnet using the main route table still has an effective route table association.
+10. A route to an Internet Gateway alone does not guarantee internet connectivity.
+
+## 11. Read-Only Safety Record
+
+All commands used in this practical were AWS EC2 describe operations.
+
+The shell loop only performed read-only AWS inspection commands.
+
+No AWS infrastructure was created, modified or deleted.
+
+The exercise was performed using the CloudLab read-only AWS profile in us-east-1.
