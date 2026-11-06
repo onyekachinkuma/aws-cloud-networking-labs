@@ -1627,3 +1627,273 @@ All AWS inspection commands in these practical exercises used the CloudLab read-
 No AWS resources were created, modified or deleted.
 
 The exercises focused on understanding existing VPC networking, internet connectivity, IP addressing, DNS, DHCP and network security configuration.
+
+---
+
+# 13. AWS VPC Network Connectivity and Traffic Flow – November 6, 2026
+
+## 1. Lesson Overview
+
+This practical exercise explored how network traffic moves through an AWS VPC, from an EC2 instance to the internet.
+
+The exercise used the existing default VPC in us-east-1.
+
+All AWS inspections were performed using the CloudLab read-only profile.
+
+## 2. EC2 Instance Inspection
+
+Command:
+
+```bash
+aws ec2 describe-instances --profile CloudLab --region us-east-1
+
+Result:
+
+No EC2 instances were returned in the selected region using the CloudLab read-only profile.
+
+This means the VPC networking configuration could be inspected, but an actual EC2-to-internet traffic test could not be performed.
+
+
+## 3. Default VPC Subnet Inspection
+
+The default VPC contained six subnets across six Availability Zones in us-east-1.
+
+| Availability Zone | Subnet ID | IPv4 CIDR |
+|---|---|---|
+| us-east-1a | subnet-07bb55d565f9a66b7 | 172.31.0.0/20 |
+| us-east-1b | subnet-0c6e00b5b3b5c4030 | 172.31.80.0/20 |
+| us-east-1c | subnet-0e6c61a11aad2ed5d | 172.31.16.0/20 |
+| us-east-1d | subnet-0af6aadebd14df396 | 172.31.32.0/20 |
+| us-east-1e | subnet-0c40d3aae49615559 | 172.31.48.0/20 |
+| us-east-1f | subnet-0babfdc409b7b1bbd | 172.31.64.0/20 |
+
+Observations:
+
+- All six subnets had automatic public IPv4 address assignment enabled.
+- Each subnet reported 4,091 available IPv4 addresses at inspection time.
+- Each subnet was marked as a default subnet for its Availability Zone.
+
+Important:
+
+Automatic public IPv4 assignment alone does not make a subnet public. The effective route table must also provide a route to an Internet Gateway for internet routing.
+
+
+## 4. Route Table Inspection
+
+Route Table ID:
+
+`rtb-0509333dff5995e2a`
+
+Observed routes:
+
+| Destination | Target | State |
+|---|---|---|
+| 172.31.0.0/16 | local | active |
+| 0.0.0.0/0 | igw-08ac9a33ea66555a7 | active |
+
+Explanation:
+
+- The local route allows communication between resources within the VPC.
+- The default route `0.0.0.0/0` sends traffic destined outside the VPC through the Internet Gateway.
+- The route table was identified as the VPC's main route table.
+
+## 5. Internet Gateway Inspection
+
+Internet Gateway ID:
+
+`igw-08ac9a33ea66555a7`
+
+Observed state:
+
+- State: available
+- Attached VPC: `vpc-0613c43bac933f8f0`
+
+An Internet Gateway provides a connection between a VPC and the internet.
+
+However, an attached Internet Gateway alone does not guarantee that an EC2 instance can access the internet. The route table, public IP configuration, Security Group and Network ACL must also permit the required traffic.
+
+
+## 6. Security Group Inspection
+
+Default Security Group ID:
+
+`sg-0697b37bce19effab`
+
+Observed rules:
+
+**Inbound**
+- Allows all protocols from network interfaces associated with the same Security Group.
+- Does not allow unrestricted inbound traffic from the internet.
+
+**Outbound**
+- Allows all protocols to `0.0.0.0/0`.
+
+Important concepts:
+
+- Security Groups are stateful.
+- If an outbound connection is allowed, response traffic is automatically permitted.
+- Security Groups operate at the instance/network-interface level.
+
+## 7. Network ACL Inspection
+
+Default Network ACL ID:
+
+`acl-094f8c990545effd2`
+
+Observed rules:
+
+| Direction | Rule Number | Action |
+|---|---:|---|
+| Inbound | 100 | Allow all IPv4 traffic |
+| Inbound | 32767 | Deny remaining traffic |
+| Outbound | 100 | Allow all IPv4 traffic |
+| Outbound | 32767 | Deny remaining traffic |
+
+Important concepts:
+
+- Network ACLs are stateless.
+- Inbound and outbound traffic must be evaluated separately.
+- Rules are evaluated in ascending numerical order.
+- The first matching rule determines the action.
+
+
+## 8. Subnet-to-Route-Table Associations
+
+The inspected route table was identified as the main route table.
+
+No explicit subnet associations were returned for the route table.
+
+This means the six default subnets use the VPC's main route table because they do not have explicit associations with another route table.
+
+Important:
+
+- A subnet can have an explicit association with a route table.
+- If it has no explicit association, it uses the VPC's main route table.
+- The effective route table determines where subnet traffic is directed.
+
+## 9. NAT Gateway Inspection
+
+No NAT Gateways were returned for the inspected VPC.
+
+A NAT Gateway allows resources in a private subnet to initiate outbound internet connections without requiring public IPv4 addresses on those resources.
+
+A NAT Gateway does not provide unsolicited inbound internet access to private instances.
+
+## 10. VPC DNS Configuration
+
+Observed settings:
+
+- DNS support: enabled.
+- DNS hostnames: enabled.
+
+These settings support DNS resolution and DNS hostnames for resources in the VPC.
+
+
+
+## 11. Local DNS, TCP and HTTPS Connectivity Tests
+
+These tests were performed from the local Ubuntu WSL environment, not from an EC2 instance inside the AWS VPC.
+
+### Test 1: DNS Resolution
+
+Command:
+
+`python3 -c "import socket; print(socket.gethostbyname_ex('google.com'))"`
+
+Result:
+
+The command successfully resolved google.com to an IP address.
+
+### Test 2: TCP Connection
+
+Command:
+
+`python3 -c "import socket; s=socket.create_connection(('google.com', 443), timeout=10); print('HTTPS TCP connection successful:', s.getpeername()); s.close()"`
+
+Result:
+
+The TCP connection to Google on port 443 was successful.
+
+### Test 3: HTTPS Request
+
+Command:
+
+`python3 -c "import urllib.request; r=urllib.request.urlopen('https://www.google.com', timeout=10); print('HTTP Status:', r.status); print('HTTPS request successful')"`
+
+Result:
+
+- HTTP Status: 200
+- HTTPS request successful.
+
+These tests confirmed that the local Ubuntu environment could resolve DNS, establish a TCP connection and complete an HTTPS request.
+
+Important distinction:
+
+These tests verified connectivity from WSL only. They did not verify actual internet connectivity from an EC2 instance or prove the AWS VPC's end-to-end traffic flow.
+
+
+## 12. Understanding AWS VPC Internet Traffic Flow
+
+For an EC2 instance in a public subnet, outbound internet traffic generally follows this path:
+
+1. DNS resolves the destination domain name to an IP address.
+2. The Security Group evaluates outbound traffic.
+3. The Network ACL evaluates outbound traffic.
+4. The route table checks the destination IP address.
+5. Traffic matching the default route `0.0.0.0/0` is sent to the Internet Gateway.
+6. The Internet Gateway provides connectivity to the internet.
+
+Response traffic follows the return path:
+
+1. The response returns through the Internet Gateway.
+2. The Network ACL evaluates inbound traffic.
+3. The Security Group automatically permits response traffic for an allowed stateful connection.
+4. The response reaches the EC2 instance.
+
+Important:
+
+For direct internet communication, an EC2 instance generally needs a public IPv4 address or Elastic IP, a route to an Internet Gateway, and appropriate security rules.
+
+This traffic flow is a conceptual explanation based on the inspected VPC configuration. It was not observed from an actual EC2 instance because no EC2 instances were returned during inspection.
+
+
+## 13. Key Lessons Learned
+
+1. A public subnet needs an effective route to an Internet Gateway.
+2. Automatic public IPv4 assignment does not independently make a subnet public.
+3. An EC2 instance needs an appropriate public IP configuration for direct internet access.
+4. Security Groups are stateful, while Network ACLs are stateless.
+5. Network ACL rules are evaluated in ascending numerical order.
+6. A subnet without an explicit route table association uses the VPC's main route table.
+7. A NAT Gateway allows private subnet resources to initiate outbound internet connections.
+8. DNS resolution, TCP connectivity and HTTPS requests are separate stages of network communication.
+9. An Internet Gateway must be attached to the VPC and referenced by an appropriate route.
+10. Successful local WSL connectivity tests do not prove AWS EC2 connectivity.
+
+## 14. Revision Questions
+
+### Question 1
+What makes an AWS subnet a public subnet?
+
+### Question 2
+Does enabling automatic public IPv4 assignment automatically make a subnet public?
+
+### Question 3
+What is the purpose of the `0.0.0.0/0` route?
+
+### Question 4
+What is the difference between a Security Group and a Network ACL?
+
+### Question 5
+Why does a private subnet use a NAT Gateway?
+
+### Question 6
+What three things did the local Ubuntu connectivity tests verify?
+
+## 15. Read-Only Safety Record
+
+All AWS inspection commands used the CloudLab read-only profile in us-east-1.
+
+No AWS resources were created, modified or deleted.
+
+The exercise focused on understanding existing VPC networking, internet connectivity, IP addressing, DNS, route tables and network security.
