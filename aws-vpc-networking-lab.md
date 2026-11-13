@@ -2042,3 +2042,127 @@ Only AWS describe commands were used.
 No AWS resources were created, modified or deleted.
 
 The findings describe the default Network ACL configuration and subnet associations at the time of inspection.
+
+---
+
+## 18. How Security Groups and Network ACLs Work Together
+
+### 18.1 Network Security Controls
+
+AWS uses multiple networking controls to manage traffic entering and leaving resources.
+
+Three important components are:
+
+1. Route tables determine where network traffic is directed.
+2. Network ACLs filter traffic at the subnet level.
+3. Security Groups filter traffic at the resource level.
+
+For traffic to reach an EC2 instance, the relevant routing and security controls must permit it.
+
+### 18.2 Default Security Group Inbound Rule
+
+The default Security Group was inspected using the AWS CLI.
+
+- Security Group ID: `sg-0697b37bce19effab`
+- Inbound rule ID: `sgr-0cb8a1213963aca2b`
+- Protocol: All protocols (`-1`)
+- Source: `sg-0697b37bce19effab`
+
+The inbound rule allows traffic from resources associated with the same Security Group.
+
+It does not allow arbitrary internet clients to connect.
+
+No EC2 instances were found associated with this Security Group at the time of inspection.
+
+### 18.3 HTTPS Traffic Flow Example
+
+The following is an illustrative example, not an actual EC2 traffic test.
+
+A client attempts to connect to a web server using HTTPS.
+
+- Client IP: `203.0.113.10`
+- Client source port: `51514`
+- Server IP: `198.51.100.20`
+- Server destination port: `443`
+- Protocol: TCP
+
+The traffic must pass the relevant network controls:
+
+1. The route table must provide a valid route to the destination.
+2. The Network ACL must permit inbound TCP traffic to port 443.
+3. The Security Group must permit inbound TCP traffic to port 443 from the client.
+4. The web server must be listening and able to handle the connection.
+
+If any required control blocks the traffic, the connection cannot reach the application.
+
+### 18.4 Security Group and Network ACL Differences
+
+Security Groups and Network ACLs handle return traffic differently.
+
+**Security Group:**
+
+- Stateful.
+- Automatically permits response traffic for an allowed connection.
+- Does not require a separate inbound or outbound rule for the response traffic of that connection.
+
+**Network ACL:**
+
+- Stateless.
+- Evaluates inbound and outbound traffic independently.
+- Must explicitly permit the return traffic.
+
+For the illustrative HTTPS connection, the server response travels from TCP port 443 back to the client's ephemeral destination port 51514.
+
+The Network ACL must allow that outbound response traffic.
+
+### 18.5 Inspection of Default Network ACL Rules
+
+The default Network ACL was inspected again.
+
+Network ACL ID: `acl-094f8c990545effd2`
+
+The inspection confirmed:
+
+| Direction | Rule Number | Action | IPv4 CIDR |
+|---|---:|---|---|
+| Inbound | 100 | Allow | `0.0.0.0/0` |
+| Inbound | 32767 | Deny | `0.0.0.0/0` |
+| Outbound | 100 | Allow | `0.0.0.0/0` |
+| Outbound | 32767 | Deny | `0.0.0.0/0` |
+
+Rule 100 permits all IPv4 traffic in both directions.
+
+### 18.6 IPv4 and IPv6 Inspection
+
+The Network ACL entries returned IPv4 CIDR values of `0.0.0.0/0`.
+
+The IPv6 CIDR field was `None` for all four inspected rules.
+
+This confirms that the inspected default Network ACL has IPv4 rules but no IPv6 CIDR entries.
+
+Earlier subnet inspection also found no IPv6 assignment enabled and no IPv6 association on the inspected default VPC.
+
+### 18.7 Important Lessons
+
+1. Route tables determine traffic destinations.
+2. Network ACLs filter traffic at the subnet level.
+3. Security Groups filter traffic at the resource level.
+4. Security Groups are stateful.
+5. Network ACLs are stateless.
+6. An inbound HTTPS request normally targets TCP port 443.
+7. A client uses an ephemeral source port for its connection.
+8. A stateless Network ACL must permit the return traffic separately.
+9. A permissive Network ACL does not override a restrictive Security Group.
+10. The relevant routing and security controls must all permit the traffic.
+
+### 18.8 Read-Only Safety Record
+
+The Security Group and Network ACL inspections were performed using the CloudLab-ReadOnly profile in us-east-1.
+
+Only AWS describe commands were used.
+
+The HTTPS traffic example is illustrative. No actual EC2 traffic test was performed.
+
+No AWS resources were created, modified or deleted.
+
+The findings describe the configurations observed at the time of inspection.
