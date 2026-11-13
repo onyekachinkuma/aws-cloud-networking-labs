@@ -1967,3 +1967,78 @@ The security group inspection and EC2 association checks were performed using th
 No AWS resources were created, modified or deleted.
 
 The findings describe the existing security group configuration and its EC2 instance associations at the time of inspection.
+
+---
+
+## 17. Default Network ACL Inspection
+
+### 17.1 Network ACL Identification
+
+The AWS CLI was used to inspect the default Network ACL associated with the default VPC.
+
+- VPC ID: `vpc-0613c43bac933f8f0`
+- Network ACL ID: `acl-094f8c990545effd2`
+- Region: `us-east-1`
+- IsDefault: `true`
+
+### 17.2 Network ACL Rules
+
+The inspection returned four IPv4 rules.
+
+| Direction | Rule Number | Protocol | Action | CIDR |
+|---|---:|---|---|---|
+| Inbound | 100 | All (`-1`) | Allow | `0.0.0.0/0` |
+| Inbound | 32767 | All (`-1`) | Deny | `0.0.0.0/0` |
+| Outbound | 100 | All (`-1`) | Allow | `0.0.0.0/0` |
+| Outbound | 32767 | All (`-1`) | Deny | `0.0.0.0/0` |
+
+Rule 100 permits all IPv4 traffic in both directions.
+
+Rule 32767 is the catch-all deny rule for traffic that does not match an earlier rule.
+
+### 17.3 Subnet Associations
+
+The default Network ACL is associated with all six subnets in the default VPC.
+
+| Subnet ID | CIDR Block | Availability Zone |
+|---|---|---|
+| `subnet-0c6e00b5b3b5c4030` | `172.31.80.0/20` | `us-east-1b` |
+| `subnet-0e6c61a11aad2ed5d` | `172.31.16.0/20` | `us-east-1c` |
+| `subnet-0babfdc409b7b1bbd` | `172.31.64.0/20` | `us-east-1f` |
+| `subnet-07bb55d565f9a66b7` | `172.31.0.0/20` | `us-east-1a` |
+| `subnet-0af6aadebd14df396` | `172.31.32.0/20` | `us-east-1d` |
+| `subnet-0c40d3aae49615559` | `172.31.48.0/20` | `us-east-1e` |
+
+### 17.4 Network ACL Association IDs
+
+The following association IDs were returned:
+
+| Association ID | Subnet ID |
+|---|---|
+| `aclassoc-0bba62bc7a15bfd10` | `subnet-0c6e00b5b3b5c4030` |
+| `aclassoc-0c7adc747c032ff01` | `subnet-0e6c61a11aad2ed5d` |
+| `aclassoc-05966d3571b4a3786` | `subnet-0babfdc409b7b1bbd` |
+| `aclassoc-081f7731af8950d85` | `subnet-0c40d3aae49615559` |
+| `aclassoc-02951a77d4d5b8a95` | `subnet-0af6aadebd14df396` |
+| `aclassoc-09d40e79616a2fb35` | `subnet-07bb55d565f9a66b7` |
+
+### 17.5 Important Network ACL Lessons
+
+1. Network ACLs operate at the subnet level.
+2. A Network ACL can be associated with multiple subnets.
+3. Each subnet is associated with one Network ACL at a time.
+4. Network ACLs are stateless. Return traffic must be explicitly permitted by the applicable rules.
+5. Network ACLs support both allow and deny rules.
+6. Rules are evaluated in ascending numerical order. The first matching rule determines the result.
+7. Security Groups are stateful, while Network ACLs are stateless.
+8. Rule 100 currently permits all IPv4 traffic in both directions in this default NACL.
+
+### 17.6 Read-Only Safety Record
+
+The Network ACL inspection was performed using the CloudLab-ReadOnly profile in us-east-1.
+
+Only AWS describe commands were used.
+
+No AWS resources were created, modified or deleted.
+
+The findings describe the default Network ACL configuration and subnet associations at the time of inspection.
