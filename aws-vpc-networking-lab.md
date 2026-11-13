@@ -1897,3 +1897,73 @@ All AWS inspection commands used the CloudLab read-only profile in us-east-1.
 No AWS resources were created, modified or deleted.
 
 The exercise focused on understanding existing VPC networking, internet connectivity, IP addressing, DNS, route tables and network security.
+
+## 16. Default Security Group Inspection
+
+### 16.1 Security Group Identified
+
+The default security group in the default VPC was inspected using the AWS CLI.
+
+- VPC ID: `vpc-0613c43bac933f8f0`
+- Security Group ID: `sg-0697b37bce19effab`
+- Security Group Name: `default`
+- Description: `default VPC security group`
+
+### 16.2 Inbound Rule
+
+The default security group has the following inbound rule:
+
+- Rule ID: `sgr-0cb8a1213963aca2b`
+- Direction: Inbound
+- Protocol: All protocols (`-1`)
+- Source: The same security group (`sg-0697b37bce19effab`)
+
+Explanation:
+
+Resources associated with this security group can receive traffic from other resources associated with the same security group.
+
+This does not allow inbound traffic from every internet address.
+
+### 16.3 Outbound Rule
+
+The default security group has the following outbound rule:
+
+- Rule ID: `sgr-0afe1663e06c51e4a`
+- Direction: Outbound
+- Protocol: All protocols (`-1`)
+- Destination: `0.0.0.0/0`
+
+Explanation:
+
+Resources associated with this security group are allowed to send outbound traffic to any IPv4 destination.
+
+### 16.4 EC2 Instance Association Check
+
+The AWS CLI was used to check whether any EC2 instances were associated with the default security group.
+
+The command returned an empty result.
+
+Finding:
+
+No EC2 instances were found associated with this security group in us-east-1 at the time of inspection.
+
+This means the security group exists independently of any currently associated EC2 instances.
+
+### 16.5 Important Security Group Lessons
+
+1. Security Groups act as virtual firewalls for associated AWS resources.
+2. Security Groups are stateful, meaning response traffic for permitted connections is automatically allowed.
+3. Inbound rules control incoming traffic.
+4. Outbound rules control outgoing traffic.
+5. `0.0.0.0/0` represents all IPv4 addresses.
+6. Protocol `-1` represents all protocols.
+7. A security group can exist without any EC2 instances using it.
+8. A configured security group rule does not prove that actual network traffic has occurred.
+
+### 16.6 Read-Only Safety Record
+
+The security group inspection and EC2 association checks were performed using the CloudLab-ReadOnly profile in us-east-1.
+
+No AWS resources were created, modified or deleted.
+
+The findings describe the existing security group configuration and its EC2 instance associations at the time of inspection.
